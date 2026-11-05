@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b0f1a">
+<title>Доска Гальтона: почему случайность образует кривую колокола</title>
+<script>
+if (window.location.protocol === 'file:' && window.location.pathname.toLowerCase().endsWith('index.html')) {
+  // При открытии index.html напрямую с диска через file:// ES-модули блокируются браузером (CORS).
+  // Автоматически перенаправляем на полнофункциональную автономную версию:
+  window.location.replace('./доска_гальтона_автономная.html');
+}
+</script>
+<meta property="og:type" content="website">
+<meta property="og:title" content="Доска Гальтона: почему случайность образует кривую колокола">
+<meta property="og:description" content="На каждом штырьке шарик случайно отскакивает влево или вправо, но тысяча шариков всегда образует нормальное распределение. Бросайте шарики, наклоняйте доску и меняйте количество рядов.">
+<meta name="description" content="Интерактивная 3D-модель доски Гальтона в стеклянном корпусе. Бросайте шарики, наклоняйте доску, изменяйте число рядов и исследуйте треугольник Паскаля, биномиальное и нормальное распределение.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f1a'/%3E%3Cpath d='M5 25C10 25 11 9 16 9s6 16 11 16' fill='none' stroke='%237fe3ff' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='5.6' r='2.2' fill='%23ffb454'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./katex/katex.min.css">
+<script src="./katex/katex.min.js"></script>
+<script src="./katex/auto-render.min.js"></script>
+<style>
+:root {
+  font-family: Inter, Outfit, "Noto Sans Math", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #eef2fa;
+  background: #0b0f1a;
+  font-synthesis: none;
+  --glass: linear-gradient(150deg, #141a2ae8, #0d1220e3);
+  --chip: #0d1220c4;
+  --mute: #9ea8c2;
+  --cyan: #7fe3ff;
+  --amber: #ffb454;
+  --coral: #ff6b86;
+  --mono: "JetBrains Mono", "DM Mono", "Noto Sans Math", ui-monospace, Menlo, Consolas, monospace;
+  --shadow: 0 18px 50px -20px #000b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; overflow: hidden; background: #0b0f1a; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+#app { position: fixed; inset: 0; isolation: isolate; user-select: none; -webkit-user-select: none; overflow: hidden; }
+#world { position: absolute; inset: 0; z-index: -3; }
+canvas { display: block; }
+#world canvas { width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#world canvas:active { cursor: grabbing; }
+.vignette {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transition: opacity .4s;
+  background: radial-gradient(ellipse at 54% 50%, transparent 56%, #04060ca8 100%);
+}
+.vignette:before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #070a13a0, transparent 24%);
+  -webkit-mask-image: linear-gradient(180deg, #000 50%, transparent 80%);
+  mask-image: linear-gradient(180deg, #000 50%, transparent 80%);
+}
+#app.light .vignette { opacity: .18; }
+#veil { position: absolute; inset: 0; z-index: -2; pointer-events: none; opacity: 0; background: #0b0f1a; }
+#loading { position: absolute; top: 47%; width: 100%; text-align: center; color: var(--mute); font-size: 14px; font-weight: 500; }
+.card { border-radius: 16px; background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+.side { position: absolute; left: 24px; top: 22px; width: 332px; pointer-events: none; z-index: 4; display: flex; flex-direction: column; gap: 11px; }
+.side > * { pointer-events: auto; }
+.brand { display: block; text-shadow: 0 2px 18px #000a; pointer-events: none !important; }
+.brand h1 { margin: 0; font-weight: 800; line-height: .98; letter-spacing: -.4px; text-transform: uppercase; }
+.brand h1 span { display: block; font-size: 18px; letter-spacing: .6px; font-weight: 600; color: #dfe6f5; }
+.brand h1 b { display: block; margin-top: 3px; font-size: 24px; font-weight: 800; color: var(--cyan); text-transform: none; letter-spacing: -.3px; }
+.brand small { display: block; margin-top: 9px; font-size: 12.5px; line-height: 1.5; color: #c7cee0; font-weight: 400; max-width: 27em; }
+#app.light .brand { text-shadow: none; }
+#app.light .brand h1 span { color: #2a3040; }
+#app.light .brand h1 b { color: #1f6f95; }
+#app.light .brand small { color: #4a5165; }
+.stats { display: flex; gap: 5px; }
+.stat { flex: 1; padding: 6px 8px 7px; border-radius: 10px; background: var(--chip); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); min-width: 0; }
+.stat i { display: block; font: 500 8.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #8d97b3; font-style: normal; white-space: nowrap; }
+.stat b { display: block; margin-top: 4px; font: 500 15px/1 var(--mono); color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat u { display: block; margin-top: 4px; font: 400 9px/1 var(--mono); color: #8d97b3; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat.hot b { color: var(--cyan); }
+.stat.warn b { color: var(--coral); }
+.why { margin: 0; padding: 9px 11px; border-radius: 12px; background: #0d1220b0; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 12px; line-height: 1.5; color: #c3cadc; min-height: 3.6em; max-width: 318px; }
+.why b { color: #fff; font-weight: 600; }
+.why .c { color: var(--cyan); }
+.why .a { color: var(--amber); }
+.why .r { color: var(--coral); }
+.ctl { position: absolute; right: 24px; top: 22px; z-index: 4; padding: 9px 10px 10px; display: flex; flex-direction: column; gap: 8px; width: 356px; }
+.ctl .r1, .ctl .r2, .ctl .r3, .ctl .r4 { display: flex; gap: 10px; align-items: flex-end; }
+.grp { display: flex; flex-direction: column; gap: 4px; }
+.slide-g { flex: 1; min-width: 120px; }
+.lab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 10px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--mute); font-weight: 600; margin: 0 3px; white-space: nowrap; }
+.lab em { font: 400 10px var(--mono); letter-spacing: 0; text-transform: none; color: #7d87a4; font-style: normal; }
+.lab .v { font: 500 11.5px var(--mono); letter-spacing: 0; text-transform: none; color: #fff; margin-left: auto; }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: 11px; background: #ffffff0c; }
+.seg button { border-radius: 9px; height: 28px; padding: 0 10px; font-size: 12.5px; font-weight: 500; color: #cfd6e8; white-space: nowrap; transition: background .15s, color .15s; }
+.seg button:hover { background: #ffffff14; }
+.seg button.on { background: #eef4ff; color: #101626; }
+#seg-drop button { font: 500 12.5px var(--mono); padding: 0 11px; }
+#seg-drop button.hit { background: #7fe3ff40; color: #fff; }
+.step { align-items: center; }
+.step b { min-width: 30px; text-align: center; font: 500 13px var(--mono); color: #fff; }
+.step button { width: 28px; padding: 0; font-size: 15px; }
+.tools { display: flex; gap: 4px; margin-left: auto; }
+.tools button, .play { background: #ffffff12; border-radius: 10px; width: 32px; height: 32px; display: grid; place-items: center; color: #dfe4f3; transition: background .15s; flex: none; }
+.tools button:hover, .play:hover { background: #ffffff24; }
+.tools button.on { background: #eef4ff; color: #141a2c; }
+.tools button svg, .play svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.play { background: #7fe3ff26; color: #bff2ff; }
+.play:hover { background: #7fe3ff3a; }
+.play svg { fill: currentColor; stroke: none; }
+.slide { position: relative; height: 32px; margin: 0 6px; cursor: pointer; touch-action: none; }
+.slide .tr { position: absolute; left: 0; right: 0; top: 14px; height: 4px; border-radius: 3px; background: #ffffff1f; }
+.slide .fl { position: absolute; left: 0; top: 14px; height: 4px; border-radius: 3px; background: linear-gradient(90deg, #7fe3ff40, var(--cyan)); box-shadow: 0 0 10px #7fe3ff80; }
+#tilt .fl { background: var(--amber); box-shadow: 0 0 10px #ffb45480; }
+.slide .kn { position: absolute; top: 8px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: linear-gradient(180deg, #f4f7ff, #aab4c8); box-shadow: 0 0 0 3px #7fe3ff33, 0 3px 8px #0009; }
+.slide .tk { position: absolute; top: 21px; width: 1px; height: 5px; background: #ffffff38; }
+#time .ev { position: absolute; top: 11px; width: 2px; height: 10px; margin-left: -1px; border-radius: 1px; background: #ffb45499; }
+#seg-sp button { padding: 0 7px; font: 500 11.5px var(--mono); }
+.br { position: absolute; right: 24px; bottom: 22px; z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
+.brb { display: flex; gap: 8px; pointer-events: auto; }
+.icb { pointer-events: auto; width: 32px; height: 32px; border-radius: 12px; background: #0e1220b8; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: grid; place-items: center; padding: 0; }
+.icb svg { width: 14px; height: 14px; fill: #dfe4f3; }
+.icb:hover { background: #1a2033f0; }
+#ui-hint { position: absolute; left: 50%; top: 22px; transform: translate(-50%); z-index: 6; font-size: 12px; color: #dfe5ee; background: #0e1220dd; border-radius: 14px; padding: 6px 13px; white-space: nowrap; opacity: 0; transition: opacity .4s; pointer-events: none; box-shadow: 0 10px 24px -12px #000c; }
+#ui-hint.on { opacity: 1; }
+#app.ui-off > :not(#world):not(.vignette):not(#veil):not(#ui-hint) { opacity: 0 !important; visibility: hidden; pointer-events: none; transition: opacity .25s, visibility 0s .25s; }
+#tip { position: absolute; z-index: 7; pointer-events: none; font: 500 11px var(--mono); color: #e9f7ff; background: #0b1020e8; border-radius: 9px; padding: 5px 9px; white-space: nowrap; opacity: 0; transform: translate(-50%, -150%); transition: opacity .15s; box-shadow: 0 8px 20px -10px #000c; }
+#tip.on { opacity: 1; }
+#tune { position: absolute; right: 24px; top: 76px; width: min(330px, calc(100vw - 48px)); z-index: 8; background: #0e1220f5; border-radius: 16px; padding: 12px 4px 10px; box-shadow: 0 22px 52px -20px #000c; font: 400 11.5px/1 var(--mono); color: #c9cfe2; }
+#tune[hidden] { display: none; }
+#tune h3 { margin: 0 12px 9px; font: 600 12px/1 Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #8f98b3; display: flex; justify-content: space-between; }
+#tune h3 em { font-style: normal; color: #7f88a5; }
+#tune-rows { max-height: min(56vh, 440px); overflow: auto; scrollbar-width: thin; }
+#tune-rows .tr { display: flex; align-items: center; gap: 8px; padding: 4px 12px; cursor: pointer; }
+#tune-rows .tr.sel { background: #ffffff14; }
+#tune-rows .tr.sub b { padding-left: 10px; color: #8f98b3; }
+#tune-rows b { flex: 1; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tune-rows u { text-decoration: none; color: #fff; min-width: 54px; text-align: right; }
+#tune-rows .tk { width: 70px; height: 14px; position: relative; flex: none; cursor: ew-resize; }
+#tune-rows .tk:before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 3px; border-radius: 2px; background: #ffffff24; }
+#tune-rows .tk i { position: absolute; top: 3px; width: 9px; height: 9px; border-radius: 50%; background: #fff; transform: translate(-50%); }
+#tune-foot { margin: 9px 12px 0; padding-top: 8px; font-size: 10px; line-height: 1.7; color: #8f98b3; }
+#tune-foot kbd { font: inherit; background: #ffffff14; border-radius: 4px; padding: 1px 4px; color: #dfe4f3; }
+#tune-json { display: block; width: calc(100% - 24px); margin: 8px 12px 0; height: 52px; resize: none; font: 400 10px/1.5 var(--mono); color: #c9cfe2; background: #ffffff0a; border: 0; border-radius: 8px; padding: 6px 8px; }
+dialog { color: #eef1fa; background: #101526; border: 0; border-radius: 20px; padding: 28px; max-width: 620px; max-height: 84vh; overflow-y: auto; box-shadow: 0 30px 80px #000a; }
+dialog::backdrop { background: #05070fa8; backdrop-filter: blur(3px); }
+dialog h2 { font-size: 23px; font-weight: 700; margin: 0 0 8px; letter-spacing: -.4px; }
+dialog h3 { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #8f98b3; margin: 20px 0 6px; font-weight: 600; }
+dialog p { font-size: 13.5px; color: #c0c7dc; line-height: 1.65; margin: 0 0 10px; }
+dialog b { color: #fff; font-weight: 600; }
+dialog code { font-family: var(--mono); font-size: 12px; background: #ffffff12; padding: 1px 5px; border-radius: 5px; }
+dialog .f { display: block; margin: 6px 0 12px; padding: 9px 12px; border-radius: 10px; background: #ffffff0a; font: 500 13.5px/1.6 var(--mono); color: #e8f6ff; }
+dialog sup { font-size: .72em; line-height: 0; }
+#close { float: right; font-size: 24px; line-height: 1; color: #8f98b3; }
+
+/* Лабораторный практикум по статистической физике */
+.lab-quick-bar { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+.lab-open-btn {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 12px;
+  border-radius: 13px; background: linear-gradient(135deg, #0d2b3ee8, #14223ce8);
+  border: 1px solid #7fe3ff55; box-shadow: 0 10px 26px -10px #000c, inset 0 1px 0 #ffffff1a;
+  color: #eef6ff; text-align: left; transition: transform .15s, border-color .15s, background .15s;
+}
+.lab-open-btn:hover { border-color: var(--cyan); background: linear-gradient(135deg, #123850f2, #192b4cf2); transform: translateY(-1px); }
+.lab-open-btn.active { background: linear-gradient(135deg, #7fe3ff28, #ffb45422); border-color: var(--amber); }
+.lab-open-ic { font-size: 18px; line-height: 1; }
+.lab-open-btn span { font-size: 13px; font-weight: 700; letter-spacing: -.1px; color: #fff; }
+.lab-open-btn small { margin-left: auto; font: 500 10.5px var(--mono); color: var(--cyan); background: #07101ecc; padding: 3px 7px; border-radius: 7px; }
+.lab-quick-toggles { display: flex; gap: 6px; }
+.lab-pill {
+  flex: 1; height: 29px; border-radius: 10px; background: #0d1220cc; border: 1px solid #ffffff14;
+  font-size: 11.5px; font-weight: 500; color: #c5cee2; display: flex; align-items: center; justify-content: center; gap: 5px;
+  backdrop-filter: blur(8px); transition: background .15s, color .15s, border-color .15s;
+}
+.lab-pill:hover { background: #172038dd; color: #fff; }
+.lab-pill.on { background: #7fe3ff24; border-color: #7fe3ff66; color: #d8f8ff; }
+#btn-toggle-blind.on { background: #ffb45429; border-color: #ffb45480; color: #ffe2b8; }
+
+.lab-panel {
+  position: absolute; top: 18px; bottom: 18px; right: 18px; z-index: 12;
+  width: min(780px, calc(100vw - 36px));
+  display: flex; flex-direction: column;
+  border-radius: 18px; background: linear-gradient(160deg, #0f1626f7, #0a0f1cf7);
+  border: 1px solid #7fe3ff33; box-shadow: 0 28px 80px -16px #000e;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  color: #e8eefc; overflow: hidden; user-select: text; -webkit-user-select: text;
+  transition: width .22s ease, left .22s ease;
+}
+.lab-panel[hidden] { display: none !important; }
+.lab-panel.fullscreen { width: calc(100vw - 36px); left: 18px; }
+
+.lab-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 12px 16px; background: #070b14b8; border-bottom: 1px solid #ffffff14;
+}
+.lab-head-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lab-badge {
+  font: 700 9.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  padding: 4px 7px; border-radius: 6px; background: #7fe3ff22; color: var(--cyan); border: 1px solid #7fe3ff44;
+}
+.lab-head h2 { margin: 0; font-size: 15.5px; font-weight: 700; color: #fff; letter-spacing: -.2px; }
+.lab-head-actions { display: flex; gap: 6px; align-items: center; }
+.lab-icon-btn {
+  padding: 5px 10px; border-radius: 8px; background: #ffffff12; color: #d5def0;
+  font-size: 12px; font-weight: 500; transition: background .15s, color .15s;
+}
+.lab-icon-btn:hover { background: #ffffff24; color: #fff; }
+.lab-close-btn { font-size: 14px; font-weight: 700; padding: 5px 9px; }
+.lab-close-btn:hover { background: #ff6b8633; color: #ff99ac; }
+
+.lab-toolbar {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 9px 16px; background: #0c1222cc; border-bottom: 1px solid #ffffff10;
+}
+.lab-source-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.lab-act-btn {
+  padding: 6px 11px; border-radius: 9px; background: #ffffff12; border: 1px solid #ffffff14;
+  font-size: 12px; font-weight: 500; color: #e2e9f8; display: inline-flex; align-items: center; gap: 5px;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.lab-act-btn:hover { background: #ffffff22; border-color: #ffffff30; }
+.lab-act-btn:active { transform: translateY(1px); }
+.lab-act-btn.primary { background: #7fe3ff24; border-color: #7fe3ff66; color: #dff9ff; font-weight: 600; }
+.lab-act-btn.primary:hover { background: #7fe3ff38; }
+.lab-act-btn.amber { background: #ffb45424; border-color: #ffb45466; color: #ffe4bc; font-weight: 600; }
+.lab-act-btn.amber:hover { background: #ffb45438; }
+
+.lab-toolbar-opts { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #b8c2d9; }
+.lab-chk { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+.lab-chk input[type="checkbox"] { accent-color: var(--cyan); cursor: pointer; }
+.lab-mini-num {
+  width: 52px; padding: 3px 5px; border-radius: 6px; border: 1px solid #ffffff26;
+  background: #070b14; color: #fff; font: 500 11.5px var(--mono); text-align: center;
+}
+
+.lab-tabs {
+  display: flex; gap: 4px; padding: 7px 16px 0; background: #090e1acc;
+  border-bottom: 1px solid #ffffff14; overflow-x: auto;
+}
+.lab-tab {
+  padding: 8px 12px; border-radius: 10px 10px 0 0; font-size: 12px; font-weight: 600;
+  color: #9ba6c2; background: transparent; border-bottom: 2px solid transparent;
+  white-space: nowrap; transition: color .15s, background .15s, border-color .15s;
+}
+.lab-tab:hover { color: #e2e8f0; background: #ffffff08; }
+.lab-tab.on { color: var(--cyan); background: #131c31; border-bottom-color: var(--cyan); }
+
+.lab-body { flex: 1; overflow-y: auto; padding: 14px 16px; scrollbar-width: thin; }
+.lab-pane { display: none; flex-direction: column; gap: 12px; }
+.lab-pane.on { display: flex; }
+
+.lab-summary-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.sum-card {
+  padding: 8px 10px; border-radius: 11px; background: #080d18cc; border: 1px solid #ffffff12;
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.sum-card.hot { border-color: #7fe3ff40; background: #0b1728cc; }
+.sum-card i { font: 500 10.5px/1.2 Inter, sans-serif; color: #94a3b8; font-style: normal; }
+.sum-card b { font: 700 16px/1.1 var(--mono); color: #fff; }
+.sum-card.hot b { color: var(--cyan); }
+.sum-card u, .src-tag { font: 400 10px/1.2 var(--mono); color: #8c98b4; text-decoration: none; }
+
+.lab-table-wrap {
+  border-radius: 12px; border: 1px solid #ffffff16; overflow: auto;
+  background: #070b14b3; max-height: calc(100vh - 340px); min-height: 260px;
+}
+.lab-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: right; }
+.lab-table th, .lab-table td { padding: 5px 8px; border-bottom: 1px solid #ffffff0d; white-space: nowrap; }
+.lab-table thead th {
+  position: sticky; top: 0; z-index: 2; background: #10182b; color: #cbd5e1;
+  font-weight: 600; font-size: 11px; text-align: center; border-bottom: 1px solid #ffffff22;
+}
+.lab-table thead th span { color: var(--cyan); font-family: var(--mono); font-size: 11.5px; }
+.lab-table tbody tr:hover { background: #ffffff08; }
+.lab-table tbody tr.row-center { background: #ffb45412; }
+.lab-table tfoot td {
+  position: sticky; bottom: 0; z-index: 2; background: #10182b;
+  border-top: 1px solid #ffffff28; padding: 7px 8px; text-align: right;
+}
+.lab-table .col-x, .lab-table tfoot td:first-child { text-align: center; }
+.center-dot { color: var(--amber); font-size: 10px; }
+.h-input-wrap { position: relative; display: flex; align-items: center; justify-content: flex-end; }
+.h-bar {
+  position: absolute; left: 0; top: 2px; bottom: 2px; border-radius: 4px;
+  background: linear-gradient(90deg, #7fe3ff14, #7fe3ff38); pointer-events: none;
+}
+.inp-hi {
+  position: relative; z-index: 1; width: 72px; padding: 3px 6px; border-radius: 6px;
+  border: 1px solid #ffffff24; background: #060a12d9; color: #fff;
+  font: 600 12px var(--mono); text-align: right;
+}
+.inp-hi:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 2px #7fe3ff33; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.pct { color: #7c8aa6; font-size: 10px; }
+.c-cyan { color: var(--cyan) !important; }
+.c-amber { color: var(--amber) !important; }
+.c-coral { color: var(--coral) !important; }
+.c-mute { color: #7c8aa6 !important; }
+
+.lab-formulas-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.lab-f-box {
+  padding: 7px 10px; border-radius: 10px; background: #080d18b3; border: 1px solid #ffffff10;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.lab-f-box i { font-size: 10px; color: #8c98b4; font-style: normal; text-transform: uppercase; letter-spacing: .04em; }
+.lab-f-box span { font: 500 11.5px var(--mono); color: #e2f1ff; }
+
+.lab-chart-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  padding: 8px 12px; border-radius: 11px; background: #080d18cc; font-size: 12px;
+}
+.lab-chart-btns { margin-left: auto; display: flex; gap: 6px; }
+.lab-canvas-wrap {
+  border-radius: 12px; border: 1px solid #ffffff1a; overflow: hidden;
+  background: #0b101d; display: flex; justify-content: center;
+}
+.lab-canvas-wrap canvas { width: 100%; height: auto; max-height: 460px; object-fit: contain; }
+.lab-chart-caption {
+  padding: 9px 12px; border-radius: 10px; background: #080d18cc; border: 1px solid #ffffff12;
+  font-size: 12.5px; line-height: 1.5; color: #cbd5e1;
+}
+
+.lab-check-intro h3 { margin: 0 0 4px; font-size: 15px; color: #fff; }
+.lab-check-intro p { margin: 0; font-size: 12.5px; color: #aab4cc; line-height: 1.5; }
+.lab-check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lab-check-item {
+  padding: 10px 12px; border-radius: 12px; background: #080d18cc; border: 1px solid #ffffff14;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.lab-check-item label { font-size: 12px; font-weight: 500; color: #d5def0; }
+.lab-check-item input {
+  padding: 6px 9px; border-radius: 8px; border: 1px solid #ffffff28;
+  background: #050811; color: #fff; font: 600 13px var(--mono);
+}
+.lab-check-feedback { font-size: 11.5px; line-height: 1.4; min-height: 1.4em; }
+.lab-check-feedback.ok { color: #34d399; }
+.lab-check-feedback.err { color: var(--coral); }
+.lab-check-actions { display: flex; gap: 8px; }
+
+.lab-phys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.phys-card {
+  padding: 12px 14px; border-radius: 12px; background: #080d18cc; border: 1px solid #ffffff14;
+}
+.phys-card h4 { margin: 0 0 6px; font-size: 13.5px; color: var(--cyan); }
+.phys-card p { margin: 0 0 10px; font-size: 12px; color: #aab4cc; line-height: 1.45; }
+.phys-kv-list { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.phys-kv-list > div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed #ffffff12; padding-bottom: 4px; }
+.phys-kv-list b { font-family: var(--mono); color: #fff; }
+.lab-fluct-box {
+  padding: 12px 14px; border-radius: 12px; background: #080d18cc; border: 1px solid #ffffff14;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.lab-fluct-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.lab-fluct-head h3 { margin: 0 0 3px; font-size: 13.5px; color: #fff; }
+.lab-fluct-head p { margin: 0; font-size: 12px; color: #9ea8c2; }
+#lab-fluct-canvas { width: 100%; height: auto; border-radius: 8px; border: 1px solid #ffffff12; }
+
+.lab-export-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+.lab-guide-text {
+  padding: 14px 18px; border-radius: 12px; background: #080d18cc; border: 1px solid #ffffff14;
+  font-size: 13px; line-height: 1.65; color: #cbd5e1;
+}
+.lab-guide-text h3 { margin: 14px 0 6px; font-size: 14.5px; color: var(--cyan); }
+.lab-guide-text h3:first-child { margin-top: 0; }
+.lab-guide-text ul, .lab-guide-text ol { margin: 6px 0 12px; padding-left: 20px; }
+.lab-guide-text li { margin-bottom: 6px; }
+.lab-formula-block {
+  margin: 6px 0; padding: 8px 12px; border-radius: 8px; background: #10192ecc;
+  border-left: 3px solid var(--cyan); font: 600 13px var(--mono); color: #eef6ff;
+}
+
+/* Новые элементы: калибровка, пошаговые бейджи, ручной расчёт, компактные столбцы и формулы */
+.lab-variant-lbl {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: #cbd5e1;
+  background: #ffffff0c; padding: 3px 6px 3px 9px; border-radius: 8px; border: 1px solid #ffffff16;
+}
+.lab-calib-group { display: inline-flex; align-items: center; gap: 5px; }
+.lab-mini-sel {
+  padding: 3px 6px; border-radius: 6px; border: 1px solid #ffffff26;
+  background: #070b14; color: #dff9ff; font: 500 11.5px Inter, sans-serif; cursor: pointer;
+}
+.step-num {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+  background: #ffffff18; color: #fff; font: 700 10.5px/1 var(--mono); margin-right: 4px;
+}
+.lab-tab.on .step-num { background: var(--cyan); color: #08101f; }
+.sum-card.warn { border-color: #ffb45455; background: #261b0ecc; }
+.sum-card.warn b { color: var(--amber); font-size: 13.5px; }
+.lab-table-subbar {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 5px 10px; border-radius: 9px; background: #080d1899; font-size: 11.5px; color: #b8c2d9;
+}
+.lab-table.compact-cols .col-opt { display: none; }
+.inp-manual {
+  width: 68px; padding: 3px 5px; border-radius: 6px; border: 1px solid #ffffff28;
+  background: #050811; color: #fff; font: 600 11.5px var(--mono); text-align: right;
+}
+.inp-manual.ok { border-color: #34d399; background: #06281ecc; color: #a7f3d0; }
+.inp-manual.err { border-color: var(--coral); background: #2c0b14cc; color: #fecdd3; }
+.f-math { display: inline-flex; align-items: center; gap: 3px; flex-wrap: wrap; font: 500 11.5px var(--mono); color: #e2f1ff; }
+.frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1.05; font-size: 0.92em; margin: 0 2px; }
+.frac > b:first-child { border-bottom: 1px solid #94a3b8; padding: 0 3px 1px; font-weight: 500; }
+.frac > b:last-child { padding: 1px 3px 0; font-weight: 500; }
+.math-sqrt { border-top: 1px solid #94a3b8; padding-top: 1px; margin-left: 1px; }
+.lab-preset-group { display: inline-flex; gap: 4px; }
+.lab-meta-inputs { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.lab-meta-inputs input, .lab-conclusion-inp {
+  width: 100%; padding: 6px 10px; border-radius: 8px; border: 1px solid #ffffff24;
+  background: #060a14; color: #fff; font: 400 12.5px Inter, sans-serif;
+}
+.lab-conclusion-inp { resize: vertical; line-height: 1.45; }
+
+@media (max-width: 900px) {
+  .lab-panel { left: 8px; right: 8px; top: 8px; bottom: 8px; width: auto; }
+  .lab-summary-strip, .lab-formulas-bar, .lab-check-grid, .lab-phys-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 1180px) {
+  .lab em { display: none; }
+  .seg button { padding: 0 8px; }
+}
+@media (max-height: 760px) and (min-width: 901px) {
+  .why, .brand small { display: none; }
+}
+@media (max-width: 900px) {
+  .side { left: 12px; top: 12px; right: 12px; width: auto; }
+  .brand h1 span { font-size: 12px; display: inline; }
+  .brand h1 b { font-size: 16px; display: inline; margin-left: 6px; }
+  .brand small { display: none; }
+  .stats { margin-top: 0; }
+  .stat { padding: 5px 6px 4px; }
+  .stat b { font-size: 13px; }
+  .stat u, .why { display: none; }
+  .ctl { left: 10px; right: 10px; top: auto; bottom: 12px; width: auto; padding: 8px; gap: 6px; }
+  .ctl .r1, .ctl .r2, .ctl .r3, .ctl .r4 { flex-wrap: wrap; gap: 6px; }
+  .r1 .grp:first-child, .r4 .grp { flex: 1; }
+  .seg button { flex: 1; padding: 0 4px; font-size: 12px; }
+  .br { display: none; }
+  .vignette { background: radial-gradient(ellipse at 50% 46%, transparent 52%, #05060c9c 100%); }
+  .vignette:before { content: none; }
+}
+</style>
+<script>
+(()=>{
+  const r = "wasdqecrm";
+  const n = t => {
+    if (t._houseKey || t.ctrlKey || t.metaKey || t.altKey || t.isComposing) return;
+    const o = t.target, e = t.key;
+    if (!e || o && (o.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(o.tagName))) return;
+    if (!t.shiftKey) return;
+    if (e.length === 1 && /[a-zа-яё]/i.test(e) && !r.includes(e.toLowerCase())) {
+      t.stopImmediatePropagation();
+      const a = new KeyboardEvent(t.type, {
+        key: e.toLowerCase(),
+        code: t.code,
+        location: t.location,
+        repeat: t.repeat,
+        bubbles: !0,
+        cancelable: !0,
+        composed: !0
+      });
+      a._houseKey = 1;
+      (o || window).dispatchEvent(a) || t.preventDefault();
+    }
+  };
+  addEventListener("keydown", n, !0);
+  addEventListener("keyup", n, !0);
+})();
+</script>
+</head>
+<body>
+<div id="app">
+<main id="world" aria-label="Доска Гальтона в стеклянном корпусе на приборной консоли в лаборатории: шарики проходят сквозь латунные штырьки и заполняют ячейки, формируя нормальное распределение (колокол)"><div id="loading">Загрузка шариков…</div></main>
+<div id="veil"></div>
+<div class="vignette"></div>
+
+<aside class="side">
+ <div class="brand">
+  <h1><span>Доска Гальтона</span> <b>Почему случайность образует колокол</b></h1>
+  <small>На каждом штырьке шарик бросает монетку. Нельзя предсказать, куда упадёт один, но тысяча всегда образует одну и ту же кривую.</small>
+ </div>
+ <div class="stats">
+  <div class="stat hot" title="Общее число шариков и суммарная высота столбиков H = ∑hᵢ (мм)"><i>Шарики / H</i><b id="s-n">0</b><u id="s-n2">в ячейках</u></div>
+  <div class="stat" title="Математическое ожидание ⟨x⟩ = ∑xᵢwᵢ (для xᵢ = 1..15 теория = 8.00)"><i>Среднее ⟨x⟩</i><b id="s-m">–</b><u id="s-m2">теория –</u></div>
+  <div class="stat" title="Среднеквадратичное отклонение σ = √D в сравнении с √(np(1 − p))"><i>СКО σ</i><b id="s-s">–</b><u id="s-s2">теория –</u></div>
+  <div class="stat" id="s-gt" title="Дисперсия D = σ² = ∑(xᵢ − ⟨x⟩)²wᵢ"><i>Дисперсия D</i><b id="s-g">–</b><u id="s-g2">теория –</u></div>
+ </div>
+ <p class="why" id="why" aria-live="polite"></p>
+</aside>
+
+<section class="card ctl" aria-label="Управление">
+ <div class="r1">
+  <div class="grp"><span class="lab">Бросок шариков <em>1 2 3</em></span>
+   <div class="seg" id="seg-drop" role="group" aria-label="Бросок шариков">
+    <button data-d="1" title="Бросить 1 шарик (1)">1</button>
+    <button data-d="10" title="Бросить 10 шариков (2)">10</button>
+    <button data-d="1000" title="Бросить 1 000 шариков (3)">1 000</button>
+   </div>
+  </div>
+  <div class="grp"><span class="lab">Ряды <em>, .</em></span>
+   <div class="seg step" id="rows" role="group" aria-label="Ряды штырьков">
+    <button data-r="-1" aria-label="Меньше рядов" title="Меньше рядов (,)">−</button>
+    <b id="rows-v" aria-live="polite">14</b>
+    <button data-r="1" aria-label="Больше рядов" title="Больше рядов (.)">+</button>
+   </div>
+  </div>
+ </div>
+ <div class="r2">
+  <div class="grp slide-g"><span class="lab">Наклон доски <em>[ ] 0</em><span class="v" id="tilt-v">0° · p = 0.50</span></span>
+   <div class="slide" id="tilt" role="slider" tabindex="0" aria-label="Наклон в градусах" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="0">
+    <div class="tr"></div>
+    <div class="fl" id="tilt-fl"></div>
+    <div class="kn" id="tilt-kn"></div>
+   </div>
+  </div>
+ </div>
+ <div class="r3">
+  <button class="play" id="play" aria-label="Пуск или пауза (пробел)" title="Пуск / пауза (пробел)">
+   <svg viewBox="0 0 24 24" aria-hidden="true"><path id="play-g" d="M7 5h3.6v14H7zM13.4 5H17v14h-3.6z"/></svg>
+  </button>
+  <div class="grp slide-g"><span class="lab">Время <em>пробел ; '</em><span class="v" id="time-v">0.0 с</span></span>
+   <div class="slide" id="time" role="slider" tabindex="0" aria-label="Время с момента очистки накопителей" aria-valuemin="0">
+    <div class="tr"></div>
+    <div class="fl" id="time-fl"></div>
+    <div id="time-ev"></div>
+    <div class="kn" id="time-kn"></div>
+   </div>
+  </div>
+  <div class="grp"><span class="lab">Скорость <em>⇧F</em></span>
+   <div class="seg" id="seg-sp" role="group" aria-label="Скорость">
+    <button data-s="0.25" title="В 4 раза медленнее">¼×</button>
+    <button data-s="1" class="on">1×</button>
+    <button data-s="4" title="В 4 раза быстрее">4×</button>
+   </div>
+  </div>
+ </div>
+ <div class="r4">
+  <div class="grp"><span class="lab">Вид <em>⇧V</em></span>
+   <div class="seg" id="seg-view" role="group" aria-label="Вид">
+    <button data-v="lab" class="on">Лаборатория</button>
+    <button data-v="exploded" title="Слои раздельно (⇧X)">По слоям</button>
+    <button data-v="studio">Студия</button>
+   </div>
+  </div>
+  <div class="tools">
+   <button id="empty" title="Очистить ячейки (⌫)" aria-label="Очистить ячейки"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.8h6V7M6.5 7l1 12.2h9L17.5 7"/><path d="M10.3 11v5M13.7 11v5"/></svg></button>
+   <button id="paths" aria-pressed="false" title="Показать пути и треугольник Паскаля (⇧P)" aria-label="Показать пути"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="4.5" r="1.6"/><circle cx="8" cy="11" r="1.6"/><circle cx="16" cy="11" r="1.6"/><circle cx="4.5" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="19.5" cy="18" r="1.6"/><path d="M11.1 5.9 8.9 9.6M12.9 5.9l2.2 3.7M7.1 12.4l-1.7 4.2M8.9 12.4l2.2 4.2M15.1 12.4l-2.2 4.2M16.9 12.4l1.7 4.2"/></svg></button>
+   <button id="cine" aria-pressed="true" aria-keyshortcuts="C" title="Кинематографическая камера (C)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h9A1.5 1.5 0 0 1 15 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 3 16.5z"/><path d="m15 10.5 5-3v9l-5-3"/></svg></button>
+   <button id="how" title="Как это устроено"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.4"/><path d="M12 16.8v.2"/></svg></button>
+  </div>
+ </div>
+</section>
+
+<div class="br">
+ <div class="brb">
+  <button class="icb" id="share" aria-label="Поделиться ссылкой" title="Поделиться"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.1.9l-7-4.1a3 3 0 0 0 0-1.6l7-4.1A3 3 0 1 0 15 5a3 3 0 0 0 .1.7l-7 4.1a3 3 0 1 0 0 4.4l7 4.1A3 3 0 1 0 18 16z"/></svg></button>
+ </div>
+</div>
+<div id="tip" aria-hidden="true"></div>
+
+<aside id="tune" hidden aria-label="Настройка рендера">
+ <h3>Рендер <em id="tune-fps">–</em></h3>
+ <div id="tune-rows"></div>
+ <p id="tune-foot"><kbd>↑↓</kbd> строка · <kbd>←→</kbd> значение · тяните ползунок · <kbd>⇧</kbd> быстрее · <kbd>0</kbd> сброс · <kbd>⇧0</kbd> сбросить всё · <kbd>C</kbd> копировать</p>
+ <textarea id="tune-json" spellcheck="false" aria-label="Параметры рендера в формате JSON"></textarea>
+</aside>
+<div id="ui-hint" aria-hidden="true"></div>
+
+<dialog id="info">
+<button id="close" aria-label="Закрыть">×</button>
+<h2>Как устроена доска Гальтона</h2>
+<p>Шарик падает на штырёк и отскакивает <b>влево или вправо</b>, словно при броске монетки. Затем он попадает на штырёк следующего ряда и снова совершает случайный выбор — по одному на каждый ряд. Итоговая ячейка зависит исключительно от того, <b>сколько раз он повернул вправо</b>. При 12 рядах шарик, повернувший вправо ровно 6 раз, окажется в 6-й (центральной) ячейке, независимо от очерёдности поворотов.</p>
+<h3>Почему центр заполняется быстрее всего</h3>
+<p>В крайнюю левую ячейку ведёт ровно один маршрут (все повороты влево), тогда как в центр при 12 рядах ведут <b>924</b> из <b>4 096</b> возможных путей. При горизонтальном положении доски каждый маршрут равновероятен, поэтому на центральную ячейку приходится 924 из 4 096 — около 22,6 % всех шариков. Если подсчитать число маршрутов к каждому штырьку, мы получим <b>треугольник Паскаля</b>, где каждое число равно сумме двух стоящих над ним. Нажмите клавишу <code>⇧P</code>, чтобы увидеть числа на штырьках с подсветкой пути одного из шариков.</p>
+<h3>Формула</h3>
+<p>При <b>n</b> рядах и вероятности <b>p</b> отскока вправо на каждом штырьке число поворотов вправо K подчиняется <b>биномиальному распределению</b>. Число сочетаний C(n, k) («из n по k») задаёт количество маршрутов в ячейку k:</p>
+<span class="f">P(K = k) = C(n, k) · p<sup>k</sup> · (1 − p)<sup>n − k</sup><br>среднее = np &nbsp; &nbsp; разброс σ = √(np(1 − p))</span>
+<h3>Откуда берётся кривая колокола</h3>
+<p>Сложите множество небольших независимых случайных событий («бросков монеты»), и их сумма всегда образует одну и ту же форму — <b>нормальную кривую</b> (колокол Гаусса). Абрахам де Муавр доказал это для бросков монеты ещё в 1733 году. Это фундаментальное проявление <b>центральной предельной теоремы</b>, которая утверждает то же самое для суммы практически любых независимых случайных величин. По этой же причине рост людей также распределён по закону колокола — он складывается из множества независимых генетических факторов и условий среды. Чем больше рядов на доске, тем точнее ячейки повторяют форму нормального распределения. При малом числе рядов или сильном наклоне доски колокол аппроксимирует результат хуже — линия под числами показывает долю шариков, в которых нормальное приближение разошлось бы с реальностью.</p>
+<h3>Наклон доски</h3>
+<p>При наклоне доски шарики чаще отскакивают в сторону наклона. В данной модели вероятность задана формулой p = ½ + 1,5 · sin(наклон), так что наклон 12° даёт p = 0,81. (В реальности точная вероятность зависит от упругости и профиля штырьков). Биномиальное распределение точно предсказывает вероятности для каждой ячейки и при наклоне, при этом колокол смещается и приобретает асимметрию.</p>
+<h3>Что означают числовые показатели</h3>
+<p>На каждой ячейке тонкая метка показывает высоту, которую предсказывает биномиальная теория для текущего числа упавших шариков, а плавная линия поверх ячеек — нормальную кривую в том же масштабе. <b>Худшая ячейка</b> — это колонка с наибольшим отклонением от теоретического прогноза, выраженным в собственных стандартных отклонениях ячейки: √(N · P · (1 − P)), где N — число шариков, а P — вероятность попадания. При дюжине ячеек наибольшее отклонение обычно составляет от 1 до 2,5σ (случайная флуктуация). Отклонение свыше 3,5σ случается примерно раз на 170 серий — если бы оно повторялось постоянно, это свидетельствовало бы о систематической ошибке или дефекте доски.</p>
+<h3>Точность моделирования</h3>
+<p>Все показатели рассчитываются непосредственно по шарикам на доске либо по приведённым формулам. Случайные повороты для каждого шарика генерируются детерминированным псевдослучайным генератором с фиксированным зерном (seed) при выходе из воронки, поэтому при перемотке времени назад и повторе вы увидите в точности ту же последовательность. Сами отскоки анимируются кинематически по дугам от штырька к штырьку без взаимных столкновений шариков в воздухе, что не меняет математического закона распределения.</p>
+<h3>Горячие клавиши</h3>
+<p><code>1</code> <code>2</code> <code>3</code> — бросить 1, 10 или 1 000 шариков · <code>[</code> <code>]</code> — наклон, <code>0</code> — выровнять по горизонтали · <code>,</code> <code>.</code> — уменьшить / увеличить число рядов · <code>⇧P</code> — показать пути и треугольник Паскаля · <code>пробел</code> — пуск / пауза · <code>;</code> <code>'</code> — шаг по времени · <code>⇧F</code> — скорость · <code>⌫</code> — очистить накопители · <code>⇧L</code> — выстроить людей на площади по росту · <code>⇧V</code> — переключить вид · <code>⇧X</code> — разобрать по слоям · <code>C</code> — кинематографическая камера · <code>R</code> — сброс камеры · <code>⇧N</code> — скрыть / показать подписи · Перетаскивание мыши — вращение камеры · Правая кнопка мыши — панорамирование · Колёсико — приближение/удаление · <code>W</code><code>A</code><code>S</code><code>D</code> — перемещение, <code>Q</code> <code>E</code> — поворот.</p>
+<p>В самой 3D-сцене вы можете потянуть рычаг справа от корпуса: лёгкое нажатие сбрасывает 1 шарик, наполовину — 10, до упора — 1 000. Потяните корпус вбок, чтобы наклонить его, или потяните сетку штырьков вверх/вниз для изменения рядов. Кнопки, переключатели и ручка на консоли прибора также интерактивны.</p>
+</dialog>
+</div>
+
+<!-- Three.js Bundle and Add-ons -->
+<script src="./three-0.183.2.js"></script>
+<script>
+(()=>{
+  const n = window.__THREE_LIB || {}, o = {};
+  for (const e in n) {
+    o[e] = URL.createObjectURL(new Blob([
+      Object.keys(n[e]).map(r => (r === "default" ? "export default " : `export const ${r}=`) + `__THREE_LIB[${JSON.stringify(e)}][${JSON.stringify(r)}];`).join("")
+    ], { type: "text/javascript" }));
+  }
+  const t = document.createElement("script");
+  t.type = "importmap";
+  t.textContent = JSON.stringify({ imports: o });
+  document.currentScript.after(t);
+})();
+</script>
+
+<!-- Galton Board Main Application Module -->
+<script type="module" src="./galton.js"></script>
+<!-- Statistical Physics Laboratory Shared Core & UI (x_i = 1..15) -->
+<script src="./lab-core.js" defer></script>
+<script src="./lab.js" defer></script>
+</body>
+</html>
